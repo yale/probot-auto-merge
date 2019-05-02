@@ -11,6 +11,8 @@ RUN npm install
 
 FROM node:alpine as app
 
+RUN apk --no-cache add git curl ca-certificates
+
 WORKDIR /app/auto-merge/
 
 COPY --from=builder /app/auto-merge/node_modules/ ./node_modules/
