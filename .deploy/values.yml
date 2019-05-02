@@ -1,0 +1,70 @@
+# Default values for generic_service.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+appName: probot-auto-merge
+namespace: github-bots
+
+releaseVersion: 1.0.0
+
+replicaCount: 1
+
+command:
+  - npm
+args:
+  - start
+
+healthProbe:
+  http:
+    enabled: true
+    path: /
+
+image:
+  repository: quay.io/wework/probot-auto-merge
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      containerPort: 3000
+      name: http
+      protocol: TCP
+
+ingress:
+  enabled: true
+  port: 3000
+  annotations:
+    kubernetes.io/ingress.class: nginx-external
+    nginx.org/server-snippet: "proxy_ssl_verify off;"
+  path: /
+
+monitoring:
+  enabled: true
+  team: github-bots
+  servicePortName: http
+
+vault:
+  enabled: true
+
+envVars:
+  - Name: WEBHOOK_SECRET
+    Value: "vault:secret/github-bots/probot-auto-merge/webhook#secret"
+
+  - Name: PRIVATE_KEY
+    Value: "vault:secret/github-bots/probot-auto-merge/keys#private"
+
+  - Name: SENTRY_DSN2
+    Value: "vault:secret/github-bots/probot-auto-merge/sentry#dsn"
+
+  - Name: NODE_ENV
+    Value: 'production'
+
+  - Name: APP_ID
+    Value: 28600
+
+  - Name: LOG_LEVEL
+    Value: 'debug'
+
+  - Name: INSTALLATION_TOKEN_TTL
+    Value: 600

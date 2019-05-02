@@ -1,0 +1,111 @@
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-javascript/ for more details
+#
+version: 2
+jobs:
+  build_docker_image:
+    working_directory: /root/project
+
+    docker:
+      - image: quay.io/wework/wek8s-image-builder:0.0.1
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASSWD
+    environment:
+      DOCKER_REGISTRY: "quay.io/wework"
+      DOCKER_REPOSITORY: "quay.io/wework/probot-auto-merge"
+
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Docker Image - Build and Push to Quay
+          command: ./.circleci/build_docker_image.sh
+
+  deploy_to_phoenix:
+    environment:
+      INGRESS_HOST: probot-auto-merge-wework.phoenix.dev.wwrk.co
+    working_directory: /root/project
+    docker:
+      - image: quay.io/wework/wek8s-tools:0.2.12
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASSWD
+    steps:
+      - checkout
+      - run:
+          name: Deploy to Phoenix
+          command: |
+            /usr/bin/deploy_helper fetch_reqs -e wek8s-phoenix -n github-bots && \
+            helmfile --file .deploy/helmfile.yml apply
+
+  deploy_to_kraken:
+    environment:
+      INGRESS_HOST: probot-auto-merge.kraken.wwrk.co
+    working_directory: /root/project
+    docker:
+      - image: quay.io/wework/wek8s-tools:0.2.12
+        auth:
+          username: $DOCKER_USER
+          password: $DOCKER_PASSWD
+    steps:
+      - checkout
+      - run:
+          name: Deploy to Kraken
+          command: |
+            /usr/bin/deploy_helper fetch_reqs -e wek8s-kraken -n github-bots && \
+            helmfile --file .deploy/helmfile.yml apply
+
+  test:
+    docker:
+      # specify the version you desire here
+      - image: circleci/node:10.15.3
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/mongo:3.4.4
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          keys:
+            - v1-dependencies-{{ checksum "package.json" }}
+            # fallback to using the latest cache if no exact match is found
+            - v1-dependencies-
+
+      - run: npm install
+
+      - save_cache:
+          paths:
+            - node_modules
+          key: v1-dependencies-{{ checksum "package.json" }}
+
+      # run tests!
+      - run: npm run test
+
+workflows:
+  version: 2
+  cibuild:
+    jobs:
+      - build_docker_image
+      - deploy_to_phoenix:
+          context: org-global
+          requires:
+            - build_docker_image
+          filters:
+            branches:
+              only: master
+      - deploy_to_kraken:
+          context: org-global
+          requires:
+            - build_docker_image
+          filters:
+            branches:
+              only: master
+      - test

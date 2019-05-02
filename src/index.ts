@@ -55,7 +55,7 @@ function setupSentry (app: Application) {
     tags: {
       version: process.env.HEROKU_RELEASE_VERSION as string
     },
-    release: process.env.SOURCE_VERSION,
+    release: process.env.DEPLOY_SHA || process.env.SOURCE_VERSION,
     environment: process.env.NODE_ENV || 'development',
     autoBreadcrumbs: {
       'console': true,
