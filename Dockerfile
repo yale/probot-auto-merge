@@ -20,6 +20,7 @@ RUN npm run build
 
 EXPOSE 80
 
-COPY .env ./
+# Uncomment for running in dev
+# COPY .env ./
 
 CMD [ "npm", "start" ]
