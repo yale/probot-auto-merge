@@ -5,7 +5,7 @@ import { result } from './utils'
 import { getPullRequestStatus, PullRequestStatus } from './pull-request-status'
 import { queryPullRequest } from './pull-request-query'
 import { updateStatusReportCheck } from './status-report'
-import { MergeStateStatus } from './query.graphql'
+import { MergeStateStatus, PullRequestState } from './query.graphql'
 
 export interface PullRequestContext extends HandlerContext {
   reschedulePullRequest: () => void,
@@ -51,13 +51,14 @@ export async function handlePullRequest (
   )
 }
 
-export type PullRequestAction = 'reschedule' | 'update_branch' | 'merge' | 'delete_branch'
+export type PullRequestAction = 'reschedule' | 'update_branch' | 'merge' | 'delete_branch' | 'ignore'
 export type PullRequestActions
   = (
     []
   | ['reschedule']
   | ['update_branch', 'reschedule']
   | ['merge']
+  | ['ignore']
   | ['merge', 'delete_branch']
 ) & Array<PullRequestAction>
 
@@ -73,6 +74,7 @@ export type PullRequestPlanCode
   | 'update_branch'
   | 'merge_and_delete'
   | 'merge'
+  | 'merged'
 
 export type PullRequestPlan = {
   code: PullRequestPlanCode,
@@ -106,6 +108,17 @@ export function getPullRequestPlan (
   pullRequestStatus: PullRequestStatus
 ): PullRequestPlan {
   const { config } = context
+
+  // Escape early if PR is already merged
+  const state = pullRequestInfo.state
+  if (state === PullRequestState.MERGED) {
+    return {
+      code: 'merged',
+      message: 'PR is already merged; ignoring',
+      actions: ['ignore']
+    }
+  }
+
   const pendingConditions = Object.entries(pullRequestStatus)
     .filter(([conditionName, conditionResult]) => conditionResult.status === 'pending')
   const failingConditions = Object.entries(pullRequestStatus)
@@ -238,6 +251,7 @@ export function getPullRequestActionName (action: PullRequestAction) {
   return ({
     'delete_branch': 'delete branch',
     'merge': 'merge',
+    'ignore': 'already merged, ignore',
     'reschedule': 'reschedule',
     'update_branch': 'update branch'
   })[action]
@@ -258,6 +272,8 @@ export async function executeAction (
       return mergePullRequest(context, pullRequestInfo)
     case 'delete_branch':
       return deleteBranch(context, pullRequestInfo)
+    case 'ignore':
+      return
     default:
       throw new Error('Invalid PullRequestAction ' + action)
   }
