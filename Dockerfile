@@ -22,4 +22,4 @@ EXPOSE 80
 
 COPY .env ./
 
-ENTRYPOINT [ "npm", "start" ]
+CMD [ "npm", "start" ]
