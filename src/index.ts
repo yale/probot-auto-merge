@@ -6,6 +6,7 @@ import { RepositoryWorkers } from './repository-workers'
 import sentryStream from 'bunyan-sentry-stream'
 import { Headers } from 'probot/lib/github'
 import { RepositoryReference, PullRequestReference } from './github-models'
+import { queryPullRequestsForBranch } from './pull-request-query'
 import myAppId from './myappid'
 import { metricsReporter } from './metrics'
 
@@ -88,7 +89,7 @@ export = (app: Application) => {
     console.error(`Error while processing pull request ${pullRequestName}:`, error)
   }
 
-  async function handlePullRequests (app: Application, context: Context, installationId: number, repository: RepositoryReference, headSha: string, pullRequestNumbers: number[]) {
+  async function handlePullRequests (app: Application, context: Context, installationId: number, repository: RepositoryReference, headSha: string | undefined, pullRequestNumbers: number[]) {
     await useWorkerContext({ app, context, installationId }, async (workerContext) => {
       for (let pullRequestNumber of pullRequestNumbers) {
         repositoryWorkers.queue(workerContext, {
@@ -106,6 +107,21 @@ export = (app: Application) => {
   // Add a new route
   router.get('/metrics', (req: any, res: any) => {
     res.send(metricsReporter.outputMetrics())
+  })
+
+  app.on([
+    'status'
+  ], async context => {
+    const repositoryReference = {
+      owner: context.payload.repository.owner.login,
+      repo: context.payload.repository.name
+    }
+
+    const pullRequests = await queryPullRequestsForBranch(context.github, repositoryReference, context.payload.branches.map((branch: { name: string }) => branch.name))
+
+    await Promise.all(pullRequests.map(pullRequest =>
+      handlePullRequests(app, context, context.payload.installation.id, repositoryReference, pullRequest.headRef, [context.payload.pull_request.number])
+    ))
   })
 
   app.on([

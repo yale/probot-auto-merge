@@ -2,6 +2,10 @@ import { AnyResponse } from '@octokit/rest'
 import { PullRequestInfo } from './models'
 import myappid from './myappid'
 
+export function notEmpty<TValue> (value: TValue | null | undefined): value is TValue {
+  return value !== null && value !== undefined
+}
+
 export function identity<T> (v: T): T { return v }
 export function keysOf<TKey extends string> (obj: { [key in TKey]: any }): TKey[] {
   return Object.keys(obj) as TKey[]
